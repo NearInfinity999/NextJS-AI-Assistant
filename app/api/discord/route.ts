@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     try {
       // Initialize Gemini
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       // The System Prompt 
       const prompt = `You are a senior Next.js developer. Provide direct, highly optimized, production-ready Next.js code. Answer this: ${userQuestion}`;
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (error) {
+        console.error("GEMINI API ERROR:", error);
       return NextResponse.json({
         type: 4,
         data: { content: "Error processing the request." },
