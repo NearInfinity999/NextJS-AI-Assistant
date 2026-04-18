@@ -50,9 +50,9 @@ export async function POST(req: NextRequest) {
           // Enforce strict structural limits for Discord webhook constraints
           const prompt = `You are a senior Next.js developer. 
                           CRITICAL RULES FOR YOUR RESPONSE:
-                          1. Provide ONLY the core Next.js logic code snippet (maximum 30 lines).
+                          1. Provide ONLY the core Next.js logic code snippet (maximum 30 lines) thta too only if the user asks for it.
                           2. Skip all boilerplate, basic imports, and CSS.
-                          3. Zero pleasantries, introductions, or conclusions. Get straight to the code.
+                          3. minimal pleasantries, introductions, or conclusions. Get straight to the code.
                           Question: ${userQuestion}`;
 
           const result = await model.generateContent(prompt);
