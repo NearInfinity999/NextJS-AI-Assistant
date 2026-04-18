@@ -9,9 +9,10 @@ export async function POST(req: NextRequest) {
   const body = await req.text();
 
   if (!signature || !timestamp) {
-    return new NextResponse('Missing headers', { status: 401 });
+    return new NextResponse('Unauthorized: Missing signatures', { status: 401 });
   }
 
+  // Validate request origin via Discord Interactions ed25519 public key
   const isVerified = nacl.sign.detached.verify(
     Buffer.from(timestamp + body),
     Buffer.from(signature, 'hex'),
@@ -19,51 +20,55 @@ export async function POST(req: NextRequest) {
   );
 
   if (!isVerified) {
-    return new NextResponse('Invalid signature', { status: 401 });
+    return new NextResponse('Unauthorized: Invalid signature', { status: 401 });
   }
 
   const json = JSON.parse(body);
 
+  // Acknowledge Discord's infrastructure ping
   if (json.type === 1) {
     return NextResponse.json({ type: 1 });
   }
 
+  // Process /ask slash command
   if (json.type === 2) {
     const userQuestion = json.data.options[0].value;
     const interactionToken = json.token;
-    
-    // REPLACE THIS WITH YOUR ACTUAL DISCORD APP ID (from register.js)
-    const appId = '1494977957704503398'; 
+    const appId = '1494977957704503398'; // <-- Just paste your App ID here and leave this comment as is!
 
-    // 1. Run the AI generation in the background
+    // Offload AI generation to background execution to prevent Discord's 3-second timeout
     waitUntil(
       (async () => {
         try {
           const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
           const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-          const prompt = `You are a senior Next.js developer. Provide direct, highly optimized, production-ready Next.js code. Answer this: ${userQuestion}`;
+          
+          // Enforce strict character limits for Discord webhook constraints
+          const prompt = `You are a senior Next.js developer. Provide direct, highly optimized, production-ready Next.js code. 
+          CRITICAL INSTRUCTION: Your entire response MUST be under 1800 characters. Be concise and get straight to the code.
+          Question: ${userQuestion}`;
           
           const result = await model.generateContent(prompt);
           const responseText = result.response.text();
 
-          // 2. Send a PATCH request to edit the "thinking..." message with the final code
+          // Patch the deferred interaction with the generated payload
           await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: responseText.substring(0, 2000) })
           });
         } catch (error) {
-          console.error("GEMINI ERROR:", error);
+          console.error("AI Generation Error:", error);
           await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: "Error processing the AI request." })
+            body: JSON.stringify({ content: "Error: AI generation failed. Check logs." })
           });
         }
       })()
     );
 
-    // 3. INSTANTLY return a "Deferred" response so Discord doesn't timeout!
+    // Return deferred state (Type 5) immediately
     return NextResponse.json({ type: 5 });
   }
 
